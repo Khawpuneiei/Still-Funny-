@@ -1,0 +1,11 @@
+# Raw model outputs contain offensive jokes, and HaHackathon tweets must not be republished:
+# keep them out of this public repo. Only numbers-only files in share/ are committed.
+runs/
+results/
+data/raw/
+data/*.csv
+*.jsonl
+*.bak
+.env
+.venv/
+__pycache__/

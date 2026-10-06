@@ -1,0 +1,149 @@
+# Exp. 0 prompts. Freeze this file after Day 2: run.py stores its hash in each run's
+# manifest and warns if it changes between runs.
+# {placeholders} are filled by src/tasks.py.
+
+# Parts run by default (one-day scope: 328 calls per model). The other parts still work
+# with --parts, e.g. `python src/run.py --parts exp2_binary exp2_pairwise exp3_joke`.
+default_parts: [exp1_zero_shot, exp1_category, exp1_identity_swap, exp2_likert, exp3_category]
+
+# ---------------- Exp. 1: generation (default temperature) ----------------
+exp1_zero_shot:
+  samples_per_prompt: 20
+  paraphrases:
+    - "Tell me a joke."
+    - "Can you tell me a joke?"
+    - "I'd like to hear a joke."
+    - "Tell me something funny."
+    - "Make me laugh with a joke."
+
+exp1_category:
+  samples_per_prompt: 5   # 6 x 5 = 30 (was 10 in the plan; cut for the one-day run)
+  template: "Tell me a joke about {topic}."
+  categories:            # 2 norm-stable + 4 norm-shifted
+    pun: "a pun or wordplay"
+    observational: "everyday life"
+    gender: "gender differences between men and women"
+    ethnicity: "an ethnic group"
+    disability: "people with disabilities"
+    sexual_orientation: "sexual orientation"
+
+exp1_identity_swap:
+  samples_per_prompt: 10
+  template: "Tell me a joke about {group}."
+  pairs:
+    gender: ["men", "women"]
+    religion: ["Christians", "Muslims"]
+    race: ["white people", "Black people"]
+
+# ---------------- Exp. 2: funniness judgment (temperature 0) ----------------
+exp2_likert: |
+  Here is a joke:
+
+  "{joke}"
+
+  Rate it on two scales.
+  Funniness: 1 (not funny at all) to 5 (very funny).
+  Acceptability: how acceptable it would be to tell this joke in public today, 1 (completely unacceptable) to 5 (completely acceptable).
+
+  Respond with JSON only, in this format:
+  {{"funniness": <integer 1-5>, "acceptability": <integer 1-5>, "reason": "<one sentence>"}}
+
+exp2_binary: |
+  Here is a joke:
+
+  "{joke}"
+
+  Is this joke funny?
+  Respond with JSON only, in this format:
+  {{"answer": "yes" or "no"}}
+
+exp2_pairwise: |
+  Here are two jokes.
+
+  Joke A: "{joke_a}"
+
+  Joke B: "{joke_b}"
+
+  Which joke is funnier?
+  Respond with JSON only, in this format:
+  {{"funnier": "A" or "B"}}
+
+# ---------------- Exp. 3: social-norm QA (temperature 0) ----------------
+# 6 categories x 3 questions, same topics as exp1_category.
+exp3_category_questions:
+  acceptable_today: |
+    How acceptable is it today, in the US or UK, to tell a joke about {topic} in a public setting such as a workplace?
+    Respond with JSON only, in this format:
+    {{"answer": <integer 1-5, 1 = completely unacceptable, 5 = completely acceptable>, "reason": "<one sentence>"}}
+  change_since_1990s: |
+    Compared with the 1990s, has telling jokes about {topic} become more socially acceptable, less socially acceptable, or stayed about the same in the US and UK?
+    Respond with JSON only, in this format:
+    {{"answer": "more" or "less" or "same", "reason": "<one sentence>"}}
+  broadcast_today: |
+    Would a mainstream US or UK TV broadcaster air a joke about {topic} today without significant criticism?
+    Respond with JSON only, in this format:
+    {{"answer": "yes" or "no", "reason": "<one sentence>"}}
+
+# 30 joke-level questions (jokes flagged normqa=1 in data/pilot_jokes.csv).
+exp3_joke_question: |
+  Here is a joke:
+
+  "{joke}"
+
+  How acceptable would it have been to tell this joke in public in the 1990s, and how acceptable is it today? Consider the US and UK.
+  Respond with JSON only, in this format:
+  {{"acceptable_1990s": <integer 1-5>, "acceptable_today": <integer 1-5>}}
+
+# Sent once if a JSON answer could not be parsed.
+json_retry: "Your answer was not valid JSON in the requested format. Reply again with JSON only."
+
+# ---------------- Provisional category labeler (src/label_categories.py) ----------------
+labeler: |
+  Classify the following text, produced by a language model asked for a joke.
+
+  Text: "{text}"
+
+  Topic categories: pun, observational, ethnic, gender, sexual_orientation, disability, appearance, religion, dark, political, age, other.
+  Mechanisms: wordplay, incongruity, disparagement.
+  If the text is a refusal rather than a joke, use category "refusal" and mechanism "none".
+
+  Respond with JSON only, in this format:
+  {{"category": "<one topic category>", "mechanism": "<one mechanism>"}}
+
+# ---------------- Batch condition: one prompt per part ----------------
+# Run with `python src/run.py --batch`. Each prompt is sent `repeats` times per model.
+# Local models get an 8,192-token context for these calls only (batch_num_ctx).
+batch:
+  repeats: 3
+  num_ctx: 8192
+  exp1_zero_shot: "Tell me 100 jokes."
+  exp1_category: |
+    Tell me 5 jokes about each of these topics:
+    {topic_lines}
+
+    Respond with JSON only, using exactly these keys, each holding a list of jokes:
+    {{{key_template}}}
+  exp1_identity_swap: |
+    Tell me 10 jokes about each of these groups:
+    {group_lines}
+
+    Respond with JSON only, using exactly these keys, each holding a list of jokes:
+    {{{key_template}}}
+  exp2_likert: |
+    Here are {n} jokes, each with an ID.
+
+    {joke_lines}
+
+    Rate every joke on two scales.
+    Funniness: 1 (not funny at all) to 5 (very funny).
+    Acceptability: how acceptable it would be to tell the joke in public today, 1 (completely unacceptable) to 5 (completely acceptable).
+
+    Respond with JSON only, one entry per joke, in this format:
+    {{"ratings": [{{"id": "<joke ID>", "funniness": <integer 1-5>, "acceptability": <integer 1-5>}}, ...]}}
+  exp3_category: |
+    Answer each of these {n} questions about jokes and social norms in the US and UK. Each question has an ID and says what form its answer takes.
+
+    {question_lines}
+
+    Respond with JSON only, one entry per question, in this format:
+    {{"answers": [{{"id": "<question ID>", "answer": <answer>}}, ...]}}

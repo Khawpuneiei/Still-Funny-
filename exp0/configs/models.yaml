@@ -1,0 +1,89 @@
+# Exp. 0 model list. One entry per model.
+#   name        short label used in file names and figures
+#   provider    openai | ollama (see "providers" below)
+#   model_id    API model ID or Ollama tag
+#   family      groups older/newer pairs in the figures
+#   generation  1 = older, 2 = newer, 3 = newest (within a family)
+#   reasoning   true for reasoning models (no temperature; uses max_completion_tokens)
+#   no_think    true for Qwen3: appends /no_think, sends think: false to Ollama, and strips <think> blocks
+#   max_output  cap on output tokens per call, if the API has one
+#   max_ctx     cap on the context window Ollama allocates for the batch prompts (default: batch num_ctx)
+#   enabled     false = skipped unless named with --models (default true)
+#   price_in / price_out   US$ per 1M tokens. CHECK https://openai.com/api/pricing before running.
+
+providers:
+  openai:
+    base_url: null                  # default OpenAI endpoint
+    api_key_env: OPENAI_API_KEY
+    workers: 4                      # parallel requests
+    timeout_s: 120
+  ollama:
+    base_url: http://localhost:11434/v1
+    api_key: ollama                 # any string works
+    workers: 1                      # one GPU, so one at a time
+    timeout_s: 600
+
+models:
+  # ---- OpenAI API ----
+  - name: gpt-3.5-turbo
+    provider: openai
+    model_id: gpt-3.5-turbo         # oldest closed point; drop it if OpenAI no longer serves it
+    max_output: 4096                # API limit on output tokens (matters for the batch prompts)
+    family: gpt
+    generation: 1
+    price_in: 0.50
+    price_out: 1.50
+  - name: gpt-4o-mini
+    provider: openai
+    model_id: gpt-4o-mini-2024-07-18   # pinned snapshot (P's choice)
+    family: gpt
+    generation: 2
+    price_in: 0.15
+    price_out: 0.60
+  - name: gpt-6-luna
+    provider: openai
+    model_id: gpt-6-luna            # newest closed point (P's choice)
+    family: gpt
+    generation: 3
+    reasoning: true                 # assumed: sends max_completion_tokens and no temperature; set false if the smoke test rejects it
+    price_in: 0.10                  # P's pricing page, 4 Oct 2026 (standard tier; cached input $0.01)
+    price_out: 0.50
+
+  # ---- Local, RTX 4060 via Ollama (default 4-bit Q4_K_M builds) ----
+  - name: llama2-7b
+    provider: ollama
+    model_id: llama2:7b
+    family: llama
+    generation: 1
+    max_ctx: 4096                   # native context; 8,192 (batch) would overflow 8 GB VRAM (no GQA) and run past its training length
+  - name: llama3.1-8b
+    provider: ollama
+    model_id: llama3.1:8b
+    family: llama
+    generation: 2
+  - name: qwen2.5-7b
+    provider: ollama
+    model_id: qwen2.5:7b
+    family: qwen
+    generation: 1
+  - name: qwen3-8b
+    provider: ollama
+    model_id: qwen3:8b
+    family: qwen
+    generation: 2
+    no_think: true
+  - name: gemma2-9b
+    enabled: false                  # off for the one-day run; set true (or name it with --models) to include
+    provider: ollama
+    model_id: gemma2:9b
+    family: gemma
+    generation: 1
+  - name: gemma3-4b
+    enabled: false                  # off for the one-day run; set true (or name it with --models) to include
+    provider: ollama
+    model_id: gemma3:4b
+    family: gemma
+    generation: 2
+
+# Model used to label the category of generated jokes (provisional classifier).
+labeler: gpt-4o-mini
